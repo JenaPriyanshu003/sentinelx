@@ -1,0 +1,8 @@
+fastapi==0.110.0
+uvicorn==0.27.1
+python-multipart==0.0.9
+# torch & torchvision already in base image — skip them!
+timm==0.9.16
+opencv-python==4.9.0.80
+pillow==10.2.0
+numpy==1.26.4

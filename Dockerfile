@@ -1,14 +1,14 @@
-FROM python:3.10-slim
+# Use a pre-built PyTorch CPU image — saves ~15 min of pip install time!
+FROM pytorch/pytorch:2.2.1-cuda11.8-cudnn8-runtime
 
-# Install system dependencies (OpenCV requires libgl1)
+# Install system dependencies for OpenCV
 RUN apt-get update && apt-get install -y libgl1 libglib2.0-0 && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy the backend requirements (if any) or directly install dependencies
-# We will install known dependencies based on main.py imports
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install remaining dependencies (torch is already included in base image)
+COPY requirements.render.txt .
+RUN pip install --no-cache-dir -r requirements.render.txt
 
 # Copy the backend code and models
 COPY backend/ ./backend/
