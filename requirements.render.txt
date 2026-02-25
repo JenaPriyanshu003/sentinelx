@@ -1,8 +1,14 @@
 fastapi==0.110.0
 uvicorn==0.27.1
 python-multipart==0.0.9
-# torch & torchvision already in base image — skip them!
+# torch & torchvision already in base image
 timm==0.9.16
 opencv-python==4.9.0.80
 pillow==10.2.0
 numpy==1.26.4
+# Database
+motor==3.3.2
+pymongo==4.6.1
+# Auth
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
