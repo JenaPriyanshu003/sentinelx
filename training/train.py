@@ -1,12 +1,14 @@
 """
-SentinelX - Xception Fine-tuning Script (Extended Phase)
-Uses OpenCV Haar Cascade for face detection.
-Supports Resuming, Early Stopping, and Learning Rate Deceleration.
+SentinelX - Xception Fine-tuning Script (Phase 6: Augmentation)
+Adds JPEG compression, blur, and noise augmentations to generalize
+against screenshot and ROOP-style deepfakes.
 """
 
 import os
+import io
 import glob
 import random
+import numpy as np
 import cv2
 import torch
 import torch.nn as nn
@@ -26,16 +28,18 @@ _ROOT   = os.path.dirname(_HERE)   # parent = SentinelX/
 # =============================================================================
 REAL_DIR   = os.path.join(_ROOT, "dataset", "raw", "real")
 FAKE_DIR   = os.path.join(_ROOT, "dataset", "raw", "fake")
+FF_REAL_DIR= os.path.join(_ROOT, "dataset", "raw", "ff_real")
+FF_FAKE_DIR= os.path.join(_ROOT, "dataset", "raw", "ff_fake")
 MODEL_BASE = os.path.join(_ROOT, "models",  "xception_pretrained.pth")
 MODEL_OUT  = os.path.join(_ROOT, "models",  "xception_finetuned.pth")
 
-FRAMES_PER_VIDEO = 8      
+FRAMES_PER_VIDEO = 8
 IMG_SIZE        = 299
 BATCH_SIZE      = 16
-TARGET_EPOCHS   = 25      # Extend to 25
-RESUME_LR       = 2e-6    # Refined Learning Rate for extended tuning
+TARGET_EPOCHS   = 45      # Automated Phase: 15 more epochs (31-45)
+RESUME_LR       = 5e-7    # Low LR for fine-tuning on new data
 WEIGHT_DECAY    = 1e-5
-UNFREEZE_EPOCH  = 3       
+UNFREEZE_EPOCH  = 3
 VAL_SPLIT       = 0.15
 PATIENCE        = 5       # Early stopping patience
 
@@ -46,6 +50,31 @@ if torch.cuda.is_available():
 
 HAAR_CASCADE = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
 face_cascade = cv2.CascadeClassifier(HAAR_CASCADE)
+
+# =============================================================================
+# AUGMENTATIONS  (simulate real-world screenshot / social-media deepfakes)
+# =============================================================================
+class RandomJPEGCompression:
+    """Simulate lossy JPEG compression (as seen in screenshots & social posts)."""
+    def __init__(self, quality_range=(30, 90)):
+        self.quality_range = quality_range
+
+    def __call__(self, img: Image.Image) -> Image.Image:
+        quality = random.randint(*self.quality_range)
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=quality)
+        buf.seek(0)
+        return Image.open(buf).convert("RGB")
+
+
+class RandomGaussianNoise:
+    """Add pixel-level Gaussian noise to simulate camera sensor artifacts."""
+    def __init__(self, std_range=(0.0, 0.05)):
+        self.std_range = std_range
+
+    def __call__(self, tensor: torch.Tensor) -> torch.Tensor:
+        std = random.uniform(*self.std_range)
+        return torch.clamp(tensor + torch.randn_like(tensor) * std, -1.0, 1.0)
 
 # =============================================================================
 # EARLY STOPPING
@@ -168,8 +197,12 @@ def unfreeze_all(m):
 # TRAINING LOOP
 # =============================================================================
 def train():
-    real_videos = glob.glob(os.path.join(REAL_DIR, "*.mp4"))
-    fake_videos = glob.glob(os.path.join(FAKE_DIR, "*.mp4"))
+    # Gather videos from BOTH Celeb-DF and FaceForensics++
+    real_videos = glob.glob(os.path.join(REAL_DIR, "*.mp4")) + \
+                  glob.glob(os.path.join(FF_REAL_DIR, "**", "*.mp4"), recursive=True)
+    
+    fake_videos = glob.glob(os.path.join(FAKE_DIR, "*.mp4")) + \
+                  glob.glob(os.path.join(FF_FAKE_DIR, "**", "*.mp4"), recursive=True)
 
     if not real_videos and not fake_videos:
         print("ERROR: No dataset found.")
@@ -184,11 +217,15 @@ def train():
     train_samples = all_samples[val_n:]
 
     train_tf = transforms.Compose([
+        RandomJPEGCompression(quality_range=(30, 92)),   # simulate screenshots
         transforms.Resize((IMG_SIZE, IMG_SIZE)),
         transforms.RandomHorizontalFlip(),
-        transforms.ColorJitter(brightness=0.2, contrast=0.2),
+        transforms.RandomApply([transforms.GaussianBlur(kernel_size=3)], p=0.4),
+        transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.2, hue=0.1),
+        transforms.RandomApply([transforms.RandomAdjustSharpness(sharpness_factor=2)], p=0.3),
         transforms.ToTensor(),
         transforms.Normalize([0.5]*3, [0.5]*3),
+        transforms.RandomApply([RandomGaussianNoise(std_range=(0.0, 0.04))], p=0.4),
     ])
     val_tf = transforms.Compose([
         transforms.Resize((IMG_SIZE, IMG_SIZE)),
