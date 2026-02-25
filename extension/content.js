@@ -1,12 +1,21 @@
 if (typeof window.sentinelxInjected === 'undefined') {
     window.sentinelxInjected = true;
 
+    // Fix 1: Block auto-scan on video-call sites (manual scan still works)
+    const AUTO_SCAN_BLOCKLIST = ['meet.google.com', 'zoom.us', 'teams.microsoft.com', 'whereby.com', 'webex.com'];
+    const isBlocklisted = AUTO_SCAN_BLOCKLIST.some(h => location.hostname.includes(h));
+
+    // Streak counter: require N consecutive fake-majority windows before alerting
+    const STREAK_NEEDED = 3;
+    let fakeStreak = 0;
+
     let stream = null;
     let intervalId = null;
     let isScanning = false;
+    let autoVideoElement = null; // Track natively hooked video tag
 
     // UI Elements
-    let widget, statusText, startBtn, stopBtn, confidenceBarContainer, confidenceFill;
+    let widget, statusText, confidenceBarContainer, confidenceFill;
 
     // Create floating widget
     function injectWidget() {
@@ -14,6 +23,7 @@ if (typeof window.sentinelxInjected === 'undefined') {
 
         widget = document.createElement('div');
         widget.id = 'sentinelx-widget-container';
+        widget.className = 'sentinelx-animate-in'; // New smooth animation
 
         widget.innerHTML = `
         <div id="sentinelx-header">
@@ -52,20 +62,27 @@ if (typeof window.sentinelxInjected === 'undefined') {
             statusText.innerText = 'Ready to Scan';
             confidenceBarContainer.style.display = 'none';
         } else if (status === 'INIT') {
-            statusText.innerText = 'Requesting Screen...';
+            statusText.innerText = 'Initializing...';
             statusText.className = 'scanning';
         } else if (status === 'SCANNING') {
-            statusText.innerText = 'Scanning... (Looking for faces)';
+            statusText.innerText = 'Live Scanning...';
             statusText.className = 'scanning';
             confidenceBarContainer.style.display = 'block';
             confidenceFill.style.width = '0%';
         } else if (status === 'RESULT') {
-            // label: 'Real' or 'Fake'
-            const isFake = label.toLowerCase() === 'fake';
-            statusText.innerText = `${isFake ? '⚠ Deepfake Detected' : '✓ Authentic'} (${confidence.toFixed(1)}%)`;
-            statusText.className = isFake ? 'fake' : 'real';
-
-            confidenceFill.classList.add(isFake ? 'fake-fill' : 'real-fill');
+            // label: 'Real', 'Fake', or 'Uncertain'
+            const isFake = label === 'Fake';
+            const isUncertain = label === 'Uncertain';
+            if (isUncertain) {
+                statusText.innerText = `~ Uncertain (${confidence.toFixed(1)}%)`;
+                statusText.className = 'scanning';
+                confidenceFill.classList.add('real-fill');
+            } else {
+                statusText.innerText = `${isFake ? '⚠ Deepfake' : '✓ Authentic'} (${confidence.toFixed(1)}%)`;
+                statusText.className = isFake ? 'fake' : 'real';
+                confidenceFill.classList.add(isFake ? 'fake-fill' : 'real-fill');
+            }
+            confidenceBarContainer.style.display = 'block';
             confidenceFill.style.width = `${confidence}%`;
         } else if (status === 'ERROR') {
             statusText.innerText = 'Error: ' + label;
@@ -74,48 +91,86 @@ if (typeof window.sentinelxInjected === 'undefined') {
         }
     }
 
-    async function startCapture() {
+    // Start Capture (Manual via popup OR Auto via Video tag)
+    async function startCapture(targetVideoElement = null) {
+        if (isScanning) return;
         try {
             updateUI('INIT');
-
-            // This triggers the browser's native screen sharing prompt
-            stream = await navigator.mediaDevices.getDisplayMedia({
-                video: {
-                    displaySurface: "browser",
-                    frameRate: { ideal: 5, max: 10 }
-                },
-                audio: false
-            });
-
-            // Set up the hidden video processor
-            setupProcessor();
-
-            // Handle stream manual stop by user from the native Chrome UI
-            stream.getVideoTracks()[0].addEventListener('ended', stopCapture);
-
-            updateUI('SCANNING');
             isScanning = true;
 
+            if (targetVideoElement) {
+                // AUTO-MODE: We have a direct DOM video tag
+                autoVideoElement = targetVideoElement;
+                setupProcessor(autoVideoElement, false);
+                updateUI('SCANNING');
+            } else {
+                // MANUAL-MODE: Browser screen-share fallback
+                stream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { displaySurface: "browser", frameRate: { ideal: 5, max: 10 } },
+                    audio: false
+                });
+
+                const hiddenVideo = document.createElement('video');
+                hiddenVideo.srcObject = stream;
+                hiddenVideo.play();
+                setupProcessor(hiddenVideo, true);
+
+                // Handle stream manual stop by user from the native Chrome UI
+                stream.getVideoTracks()[0].addEventListener('ended', stopCapture);
+                updateUI('SCANNING');
+            }
         } catch (err) {
             console.error("Capture Error:", err);
+            isScanning = false;
             updateUI('READY'); // Reset if user cancels prompt
         }
     }
 
-    function setupProcessor() {
-        const video = document.createElement('video');
-        video.srcObject = stream;
-        video.play();
+    /**
+     * Frame quality gate — returns true if the frame is usable.
+     * Skips frames that are too dark (low brightness) or too blurry (low variance).
+     * This prevents bad-camera / low-light frames from polluting the sliding window.
+     */
+    function isFrameUsable(ctx, width, height) {
+        // Sample a small 64x64 region from the center for speed
+        const sw = Math.min(64, width), sh = Math.min(64, height);
+        const sx = Math.floor((width - sw) / 2);
+        const sy = Math.floor((height - sh) / 2);
+        const data = ctx.getImageData(sx, sy, sw, sh).data; // RGBA
 
+        let sum = 0, sumSq = 0;
+        const pixels = sw * sh;
+        for (let i = 0; i < data.length; i += 4) {
+            // Luminance approximation
+            const lum = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
+            sum += lum;
+            sumSq += lum * lum;
+        }
+        const mean = sum / pixels;
+        const variance = sumSq / pixels - mean * mean;
+
+        // Too dark: mean brightness below 40/255
+        if (mean < 40) { console.log('[SentinelX] Frame too dark, skipping.'); return false; }
+        // Too blurry/flat: variance below 200 means very little detail
+        if (variance < 200) { console.log('[SentinelX] Frame too blurry/flat, skipping.'); return false; }
+
+        return true;
+    }
+
+    function setupProcessor(videoElement, isStream) {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-
-        // To prevent aggressive memory bloat, limit resolution slightly if 4k
         const MAX_DIM = 1280;
 
-        video.addEventListener('loadedmetadata', () => {
-            let width = video.videoWidth;
-            let height = video.videoHeight;
+        const startSampling = () => {
+            let width = videoElement.videoWidth || videoElement.clientWidth;
+            let height = videoElement.videoHeight || videoElement.clientHeight;
+
+            // Wait for valid dimensions if they are 0
+            if (width === 0 || height === 0) {
+                setTimeout(startSampling, 500);
+                return;
+            }
 
             if (width > MAX_DIM) {
                 height = Math.floor(height * (MAX_DIM / width));
@@ -129,13 +184,42 @@ if (typeof window.sentinelxInjected === 'undefined') {
             intervalId = setInterval(() => {
                 if (!isScanning) return;
 
-                ctx.drawImage(video, 0, 0, width, height);
+                // If the DOM video element was paused, we pause scanning
+                if (!isStream && (videoElement.paused || videoElement.ended)) {
+                    updateUI('READY');
+                    return;
+                }
 
-                // Extract frame as high-compressed JPEG strictly in memory
-                const frameBase64 = canvas.toDataURL('image/jpeg', 0.6);
-                sendToBackend(frameBase64);
+                // If it resumed, show scanning
+                if (!isStream && !videoElement.paused && statusText.className !== 'scanning' && statusText.className !== 'real' && statusText.className !== 'fake') {
+                    updateUI('SCANNING');
+                }
+
+                try {
+                    ctx.drawImage(videoElement, 0, 0, width, height);
+
+                    // Quality gate: skip dark / blurry frames
+                    if (!isFrameUsable(ctx, width, height)) {
+                        if (statusText && statusText.className !== 'fake' && statusText.className !== 'real') {
+                            statusText.innerText = '⟳ Low quality — skipping frame';
+                            statusText.className = 'scanning';
+                        }
+                        return; // Don't touch history or streak — preserve last good verdict
+                    }
+
+                    const frameBase64 = canvas.toDataURL('image/jpeg', 0.6);
+                    sendToBackend(frameBase64);
+                } catch (e) {
+                    console.error("Canvas draw error (CORS/Tainted usually):", e);
+                }
             }, 200);
-        });
+        };
+
+        if (videoElement.videoWidth) {
+            startSampling();
+        } else {
+            videoElement.addEventListener('loadedmetadata', startSampling);
+        }
     }
 
     // Simple sliding window for temporal smoothing (last 5 results)
@@ -146,20 +230,8 @@ if (typeof window.sentinelxInjected === 'undefined') {
             chrome.runtime.sendMessage(
                 { action: "ANALYZE_FRAME", frame: base64Frame },
                 (response) => {
-                    if (chrome.runtime.lastError) {
-                        console.error("Extension error:", chrome.runtime.lastError.message);
-                        if (chrome.runtime.lastError.message.includes("Receiving end does not exist") || chrome.runtime.lastError.message.includes("establish connection")) {
-                            statusText.innerText = "Extension Rebooted: Please Refresh Page (Cmd+R)";
-                            statusText.className = "scanning";
-                            confidenceFill.style.width = '0%';
-                            stopCapture(); // Hard stop
-                        }
-                        return;
-                    }
-                    if (response && response.error) {
-                        console.error("Backend error:", response.error);
-                        return;
-                    }
+                    if (chrome.runtime.lastError) return;
+                    if (!response || response.error) return;
 
                     const result = response.result;
                     if (!result) return;
@@ -173,36 +245,40 @@ if (typeof window.sentinelxInjected === 'undefined') {
                         const avg_fake = history.reduce((a, b) => a + b, 0) / history.length;
                         const avg_real = 100 - avg_fake;
 
-                        const isFake = avg_fake > avg_real;
-                        const conf = Math.max(avg_fake, avg_real);
-
-                        updateUI('RESULT', isFake ? 'Fake' : 'Real', conf);
+                        // Binary verdict: fake wins if avg_fake > avg_real (same as original score logic)
+                        // The streak counter (3 consecutive windows) is the only noise guard
+                        if (avg_fake > avg_real) {
+                            fakeStreak++;
+                            if (fakeStreak >= STREAK_NEEDED) {
+                                updateUI('RESULT', 'Fake', avg_fake); // Confirmed deepfake
+                            } else {
+                                // Building streak — show scanning so UI isn't jumpy
+                                statusText.innerText = `Analyzing... (${avg_fake.toFixed(1)}%)`;
+                                statusText.className = 'scanning';
+                            }
+                        } else {
+                            fakeStreak = 0;
+                            updateUI('RESULT', 'Real', avg_real);
+                        }
                     } else if (result.status === 'no_face') {
                         // Keep previous state but dim it, or say looking for faces
                         if (statusText.className !== 'scanning') {
-                            statusText.innerText = "Looking for faces...";
+                            statusText.innerText = "Scanning Feed...";
                             statusText.className = "scanning";
                             confidenceFill.style.width = '0%';
                         }
                     }
-                }); // wait for background response
-
+                });
         } catch (error) {
             console.error("Frame Dispatch Error:", error.message);
-            if (error.message && error.message.includes("Extension context invalidated")) {
-                if (statusText) {
-                    statusText.innerText = "Extension Rebooted: Please Refresh (Cmd+R)";
-                    statusText.className = "scanning";
-                }
-                if (confidenceFill) confidenceFill.style.width = '0%';
-                stopCapture();
-            }
         }
     }
 
     function stopCapture() {
         isScanning = false;
+        autoVideoElement = null;
         history = [];
+        fakeStreak = 0;
         if (intervalId) {
             clearInterval(intervalId);
             intervalId = null;
@@ -214,13 +290,55 @@ if (typeof window.sentinelxInjected === 'undefined') {
         updateUI('READY');
     }
 
-    // Listen for messages from popup
+    // --- PHASE 7: AUTO-SCAN MUTATION OBSERVER ---
+    // Automatically detect playing <video> tags on the page and hook into them seamlessly.
+    function checkForVideos() {
+        // Fix 1: Don't auto-scan on video-call sites
+        if (isBlocklisted) {
+            console.log("[SentinelX] Video-call site detected. Auto-scan disabled. Use popup to scan manually.");
+            return;
+        }
+        if (isScanning) return; // Already scanning
+        const videos = document.querySelectorAll('video');
+        for (let vid of videos) {
+            // Fix 2: Only hook videos larger than 300x200 (ignore tiny participant tiles)
+            if (!vid.paused && vid.readyState >= 2 && vid.clientWidth > 300 && vid.clientHeight > 200) {
+                console.log("[SentinelX] Auto-detected playing video. Deploying Shield...");
+                injectWidget();
+                startCapture(vid);
+                return; // Only hook the first major playing video
+            }
+
+            // If it's not playing yet, attach a play listener
+            if (!vid.hasAttribute('data-sentinelx-hooked')) {
+                vid.setAttribute('data-sentinelx-hooked', 'true');
+                vid.addEventListener('playing', () => {
+                    // Fix 1 & 2: Re-check blocklist and size on play event too
+                    if (!isScanning && !isBlocklisted && vid.clientWidth > 300 && vid.clientHeight > 200) {
+                        console.log("[SentinelX] Video play event detected. Deploying Shield...");
+                        injectWidget();
+                        startCapture(vid);
+                    }
+                });
+            }
+        }
+    }
+
+    // Run initial check
+    setTimeout(checkForVideos, 1000);
+
+    // Watch for dynamically added videos (like YouTube navigation or Twitter feed scrolling)
+    const observer = new MutationObserver(() => {
+        if (!isScanning) checkForVideos();
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
+
+    // --- LISTEN FOR MANUAL MESSAGES FROM POPUP ---
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (request.action === "START_SCAN") {
-            if (!document.getElementById('sentinelx-widget-container')) {
-                injectWidget();
-            }
-            startCapture();
+            if (!document.getElementById('sentinelx-widget-container')) injectWidget();
+            startCapture(); // Manual start via screen-share
             sendResponse({ status: "started" });
         } else if (request.action === "STOP_SCAN") {
             stopCapture();

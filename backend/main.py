@@ -121,6 +121,11 @@ def _crop_face(pil_img):
         x1, y1 = max(0, x-pad), max(0, y-pad)
         x2, y2 = min(np_img.shape[1], x+w+pad), min(np_img.shape[0], y+h+pad)
         return Image.fromarray(np_img[y1:y2, x1:x2])
+    
+    # NEW BEHAVIOR: 
+    # If no face is formally detected by the basic algorithm, we do NOT crash.
+    # We simply hand the entire raw picture to the massively smart Xception AI
+    # and let it figure out if there is a deepfake anywhere on screen.
     return pil_img
 
 def _infer(pil_img):
