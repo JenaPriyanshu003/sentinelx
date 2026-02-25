@@ -148,6 +148,12 @@ if (typeof window.sentinelxInjected === 'undefined') {
                 (response) => {
                     if (chrome.runtime.lastError) {
                         console.error("Extension error:", chrome.runtime.lastError.message);
+                        if (chrome.runtime.lastError.message.includes("Receiving end does not exist") || chrome.runtime.lastError.message.includes("establish connection")) {
+                            statusText.innerText = "Extension Rebooted: Please Refresh Page (Cmd+R)";
+                            statusText.className = "scanning";
+                            confidenceFill.style.width = '0%';
+                            stopCapture(); // Hard stop
+                        }
                         return;
                     }
                     if (response && response.error) {
@@ -182,7 +188,15 @@ if (typeof window.sentinelxInjected === 'undefined') {
                 }); // wait for background response
 
         } catch (error) {
-            console.error("Frame Dispatch Error:", error);
+            console.error("Frame Dispatch Error:", error.message);
+            if (error.message && error.message.includes("Extension context invalidated")) {
+                if (statusText) {
+                    statusText.innerText = "Extension Rebooted: Please Refresh (Cmd+R)";
+                    statusText.className = "scanning";
+                }
+                if (confidenceFill) confidenceFill.style.width = '0%';
+                stopCapture();
+            }
         }
     }
 
