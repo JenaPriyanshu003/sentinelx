@@ -71,8 +71,8 @@ function App() {
 
     try {
       const endpoint = isVideo ? '/predict/video' : '/predict/image';
-      // Backend should be running on localhost:8000
-      const response = await fetch(`http://localhost:8000${endpoint}`, {
+      const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${backendUrl}${endpoint}`, {
         method: 'POST',
         body: formData,
       });
