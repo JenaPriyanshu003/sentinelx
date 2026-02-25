@@ -120,20 +120,16 @@ def _crop_face(pil_img):
         pad = int(0.1 * min(w, h))
         x1, y1 = max(0, x-pad), max(0, y-pad)
         x2, y2 = min(np_img.shape[1], x+w+pad), min(np_img.shape[0], y+h+pad)
-        return Image.fromarray(np_img[y1:y2, x1:x2])
+        return Image.fromarray(np_img[y1:y2, x1:x2]), [int(x), int(y), int(w), int(h)]
     
-    # NEW BEHAVIOR: 
-    # If no face is formally detected by the basic algorithm, we do NOT crash.
-    # We simply hand the entire raw picture to the massively smart Xception AI
-    # and let it figure out if there is a deepfake anywhere on screen.
-    return pil_img
+    return pil_img, None
 
 def _infer(pil_img):
-    face   = _crop_face(pil_img)
+    face, box = _crop_face(pil_img)
     tensor = transform(face).unsqueeze(0).to(device)
     with torch.no_grad():
         probs = torch.nn.functional.softmax(model(tensor), dim=1)[0]
-    return probs[0].item(), probs[1].item()
+    return probs[0].item(), probs[1].item(), box
 
 def _verdict(prob_fake, prob_real, analyzed_type):
     conf    = max(prob_fake, prob_real)
@@ -257,12 +253,14 @@ async def predict_frame(request: Request):
             raise HTTPException(400, "No frame payload found in request.")
 
         img = Image.open(io.BytesIO(raw)).convert("RGB")
-        pf, pr = _infer(img)
+        pf, pr, box = _infer(img)
         result = _verdict(pf, pr, "frame")
         result["status"] = "success"
+        result["face_box"] = box # [x, y, w, h]
         return result
     except Exception as e:
-        print(f"Error in predict_frame: {e}")
+        import traceback
+        traceback.print_exc()
         return {"status": "no_face", "prediction": "Unknown", "confidence": 0}
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@ if (typeof window.sentinelxInjected === 'undefined') {
     window.sentinelxInjected = true;
 
     // Fix 1: Block auto-scan on video-call sites (manual scan still works)
-    const AUTO_SCAN_BLOCKLIST = ['meet.google.com', 'zoom.us', 'teams.microsoft.com', 'whereby.com', 'webex.com'];
+    const AUTO_SCAN_BLOCKLIST = ['zoom.us', 'teams.microsoft.com', 'whereby.com', 'webex.com'];
     const isBlocklisted = AUTO_SCAN_BLOCKLIST.some(h => location.hostname.includes(h));
 
     // Streak counter: require N consecutive fake-majority windows before alerting
@@ -180,6 +180,10 @@ if (typeof window.sentinelxInjected === 'undefined') {
             canvas.width = width;
             canvas.height = height;
 
+            // Store current sampling dimensions for the coordinate mapper
+            videoElement.setAttribute('data-sentinelx-sample-w', width);
+            videoElement.setAttribute('data-sentinelx-sample-h', height);
+
             // Sample at 5 FPS (every 200ms)
             intervalId = setInterval(() => {
                 if (!isScanning) return;
@@ -208,7 +212,7 @@ if (typeof window.sentinelxInjected === 'undefined') {
                     }
 
                     const frameBase64 = canvas.toDataURL('image/jpeg', 0.6);
-                    sendToBackend(frameBase64);
+                    sendToBackend(frameBase64, videoElement);
                 } catch (e) {
                     console.error("Canvas draw error (CORS/Tainted usually):", e);
                 }
@@ -225,7 +229,66 @@ if (typeof window.sentinelxInjected === 'undefined') {
     // Simple sliding window for temporal smoothing (last 5 results)
     let history = [];
 
-    function sendToBackend(base64Frame) {
+    function renderFaceBox(video, box, prediction, confidence) {
+        let boxId = video.getAttribute('data-sentinelx-box-id');
+        let boxEl;
+
+        if (!boxId) {
+            boxId = 'box-' + Math.random().toString(36).substr(2, 9);
+            video.setAttribute('data-sentinelx-box-id', boxId);
+            boxEl = document.createElement('div');
+            boxEl.id = boxId;
+            boxEl.className = 'sentinelx-face-box';
+            boxEl.innerHTML = '<div class="sentinelx-face-label"></div>';
+            document.body.appendChild(boxEl);
+        } else {
+            boxEl = document.getElementById(boxId);
+        }
+
+        if (!boxEl) return;
+
+        if (!box) {
+            boxEl.style.display = 'none';
+            return;
+        }
+
+        // Calculate positioning
+        const rect = video.getBoundingClientRect();
+        const videoNativeW = video.videoWidth || video.clientWidth;
+        const videoNativeH = video.videoHeight || video.clientHeight;
+
+        // Scaling factors
+        // The box coordinates from backend are relative to the canvas dimensions we sent
+        const sampleW = parseFloat(video.getAttribute('data-sentinelx-sample-w')) || videoNativeW;
+        const sampleH = parseFloat(video.getAttribute('data-sentinelx-sample-h')) || videoNativeH;
+
+        const scaleX = rect.width / sampleW;
+        const scaleY = rect.height / sampleH;
+
+        const [x, y, w, h] = box;
+
+        boxEl.style.display = 'block';
+        boxEl.style.left = (rect.left + window.scrollX + (x * scaleX)) + 'px';
+        boxEl.style.top = (rect.top + window.scrollY + (y * scaleY)) + 'px';
+        boxEl.style.width = (w * scaleX) + 'px';
+        boxEl.style.height = (h * scaleY) + 'px';
+
+        // Update classes and label
+        boxEl.classList.remove('fake', 'real');
+        const label = boxEl.querySelector('.sentinelx-face-label');
+
+        if (prediction === 'Fake') {
+            boxEl.classList.add('fake');
+            label.innerText = `⚠ Deepfake Detected (${confidence.toFixed(1)}%)`;
+        } else if (prediction === 'Real') {
+            boxEl.classList.add('real');
+            label.innerText = `✓ Authentic (${confidence.toFixed(1)}%)`;
+        } else {
+            label.innerText = `Analyzing...`;
+        }
+    }
+
+    function sendToBackend(base64Frame, videoElement = null) {
         try {
             chrome.runtime.sendMessage(
                 { action: "ANALYZE_FRAME", frame: base64Frame },
@@ -237,7 +300,7 @@ if (typeof window.sentinelxInjected === 'undefined') {
                     if (!result) return;
 
                     if (result.status === 'success') {
-                        // Sliding Window calculation for temporal smoothing
+                        // Temporal smoothing
                         const score_fake = result.score_fake;
                         history.push(score_fake);
                         if (history.length > 5) history.shift();
@@ -245,23 +308,26 @@ if (typeof window.sentinelxInjected === 'undefined') {
                         const avg_fake = history.reduce((a, b) => a + b, 0) / history.length;
                         const avg_real = 100 - avg_fake;
 
-                        // Binary verdict: fake wins if avg_fake > avg_real (same as original score logic)
-                        // The streak counter (3 consecutive windows) is the only noise guard
-                        if (avg_fake > avg_real) {
+                        const pred = avg_fake > avg_real ? 'Fake' : 'Real';
+                        const conf = avg_fake > avg_real ? avg_fake : avg_real;
+
+                        if (pred === 'Fake') {
                             fakeStreak++;
                             if (fakeStreak >= STREAK_NEEDED) {
-                                updateUI('RESULT', 'Fake', avg_fake); // Confirmed deepfake
+                                if (videoElement) renderFaceBox(videoElement, result.face_box, pred, conf);
+                                updateUI('RESULT', 'Fake', avg_fake);
                             } else {
-                                // Building streak — show scanning so UI isn't jumpy
+                                if (videoElement) renderFaceBox(videoElement, result.face_box, 'Analyzing', avg_fake);
                                 statusText.innerText = `Analyzing... (${avg_fake.toFixed(1)}%)`;
                                 statusText.className = 'scanning';
                             }
                         } else {
                             fakeStreak = 0;
+                            if (videoElement) renderFaceBox(videoElement, result.face_box, 'Real', avg_real);
                             updateUI('RESULT', 'Real', avg_real);
                         }
                     } else if (result.status === 'no_face') {
-                        // Keep previous state but dim it, or say looking for faces
+                        if (videoElement) renderFaceBox(videoElement, null);
                         if (statusText.className !== 'scanning') {
                             statusText.innerText = "Scanning Feed...";
                             statusText.className = "scanning";
@@ -279,6 +345,11 @@ if (typeof window.sentinelxInjected === 'undefined') {
         autoVideoElement = null;
         history = [];
         fakeStreak = 0;
+
+        // Cleanup face boxes
+        document.querySelectorAll('.sentinelx-face-box').forEach(box => box.remove());
+        document.querySelectorAll('[data-sentinelx-box-id]').forEach(v => v.removeAttribute('data-sentinelx-box-id'));
+
         if (intervalId) {
             clearInterval(intervalId);
             intervalId = null;
