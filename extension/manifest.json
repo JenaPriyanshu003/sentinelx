@@ -6,7 +6,8 @@
     "permissions": [
         "activeTab",
         "scripting",
-        "storage"
+        "storage",
+        "tabs"
     ],
     "host_permissions": [
         "http://localhost:8000/*",
@@ -35,7 +36,9 @@
     "web_accessible_resources": [
         {
             "resources": [
-                "assets/*"
+                "assets/*",
+                "dashboard/*",
+                "dashboard/index.html"
             ],
             "matches": [
                 "<all_urls>"

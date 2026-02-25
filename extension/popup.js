@@ -1,3 +1,4 @@
+// Toggle the live scanning overlay on the active tab
 document.getElementById('toggle-btn').addEventListener('click', async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
@@ -8,7 +9,7 @@ document.getElementById('toggle-btn').addEventListener('click', async () => {
 
     // Attempt to message the content script first to toggle the UI cleanly
     chrome.tabs.sendMessage(tab.id, { action: "TOGGLE_WIDGET" }, (response) => {
-        // If the request fails, it implies the content script hasn't been injected yet
+        // If the request fails, the content script hasn't been injected yet
         if (chrome.runtime.lastError) {
             console.log("Injecting SentinelX Scripts...");
 
@@ -26,4 +27,10 @@ document.getElementById('toggle-btn').addEventListener('click', async () => {
             });
         }
     });
+});
+
+// Open the bundled React dashboard as a new Chrome tab
+document.getElementById('dashboard-btn').addEventListener('click', () => {
+    const dashboardUrl = chrome.runtime.getURL('dashboard/index.html');
+    chrome.tabs.create({ url: dashboardUrl });
 });
