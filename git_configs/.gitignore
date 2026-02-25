@@ -1,0 +1,57 @@
+# Large Datasets
+dataset/
+SentinelX/dataset/
+
+# Virtual Environments
+venv/
+venv_gpu/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Node/React
+node_modules/
+.DS_Store
+dist/
+dist-ssr/
+*.local
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Project Temporary Files
+training_progress.txt
+training/quick_val.py
+training/final_check.py
+
+# NOTE: models/ and *.pth are NOT ignored so they can be pushed to git.
