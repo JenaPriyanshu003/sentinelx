@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <title>SentinelX Shield</title>
@@ -17,11 +18,13 @@
       cursor: pointer;
       transition: all 0.2s;
     }
+
     .dashboard-btn:hover {
       background: #1a202c;
       color: #e2e8f0;
       border-color: #4a5568;
     }
+
     .divider {
       border: none;
       border-top: 1px solid #2d3748;
@@ -29,23 +32,36 @@
     }
   </style>
 </head>
+
 <body>
   <div class="container">
     <div class="header">
       <h1 class="logo">SentinelX</h1>
       <p class="subtitle">Live Deepfake Shield</p>
     </div>
-    
+
     <div class="status-box">
       <div class="status-indicator"></div>
       <span>System Ready</span>
     </div>
 
     <p class="description">
-      Ensure your video conference is running, then deploy the shield. The widget will appear on your page to scan faces without saving any data.
+      Ensure your video conference is running, then deploy the shield. The widget will appear on your page to scan faces
+      without saving any data.
     </p>
 
-    <button id="toggle-btn" class="primary-btn">Toggle Shield Overlay</button>
+    <div class="toggle-container">
+      <span class="toggle-label">Start Live Shield</span>
+      <label class="switch">
+        <input type="checkbox" id="scan-toggle">
+        <span class="slider round"></span>
+      </label>
+    </div>
+
+    <button id="reload-ext-btn" class="dashboard-btn"
+      style="background: #e53e3e; color: white; font-weight: bold; border-color: #c53030; margin-top: 16px;">
+      ↻ Force Restart Extension
+    </button>
 
     <hr class="divider">
 
@@ -53,4 +69,5 @@
   </div>
   <script src="popup.js"></script>
 </body>
+
 </html>

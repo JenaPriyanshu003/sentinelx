@@ -228,23 +228,36 @@ async def predict_video(
         await scans_col.insert_one({**result, "user_email": user_email, "timestamp": datetime.utcnow()})
     return result
 
+from fastapi import Request
+
 @app.post("/predict/frame")
-async def predict_frame(file: UploadFile = File(None), frame_base64: str = Form(None)):
+async def predict_frame(request: Request):
     if not model:
         raise HTTPException(500, "Model not loaded.")
     try:
-        if file:
-            raw = await file.read()
-        elif frame_base64:
-            raw = base64.b64decode(frame_base64.split(",")[-1])
-        else:
-            raise HTTPException(400, "No frame payload.")
+        content_type = request.headers.get('content-type', '')
+        raw = None
+        if 'application/json' in content_type:
+            data = await request.json()
+            if "frame_base64" in data and data["frame_base64"]:
+                raw = base64.b64decode(data["frame_base64"].split(",")[-1])
+        elif 'multipart/form-data' in content_type or 'application/x-www-form-urlencoded' in content_type:
+            form = await request.form()
+            if "file" in form:
+                raw = await form["file"].read()
+            elif "frame_base64" in form and form["frame_base64"]:
+                raw = base64.b64decode(form["frame_base64"].split(",")[-1])
+                
+        if not raw:
+            raise HTTPException(400, "No frame payload found in request.")
+
         img = Image.open(io.BytesIO(raw)).convert("RGB")
         pf, pr = _infer(img)
         result = _verdict(pf, pr, "frame")
         result["status"] = "success"
         return result
-    except Exception:
+    except Exception as e:
+        print(f"Error in predict_frame: {e}")
         return {"status": "no_face", "prediction": "Unknown", "confidence": 0}
 
 if __name__ == "__main__":
