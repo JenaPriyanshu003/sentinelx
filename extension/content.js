@@ -12,7 +12,6 @@ if (typeof window.sentinelxInjected === 'undefined') {
     let stream = null;
     let intervalId = null;
     let isScanning = false;
-    let userPaused = false; // Prevents auto-scan from re-triggering after manual stop
     let autoVideoElement = null; // Track natively hooked video tag
 
     // UI Elements
@@ -150,10 +149,10 @@ if (typeof window.sentinelxInjected === 'undefined') {
         const mean = sum / pixels;
         const variance = sumSq / pixels - mean * mean;
 
-        // Too dark: mean brightness below 40/255
-        if (mean < 40) { console.log('[SentinelX] Frame too dark, skipping.'); return false; }
-        // Too blurry/flat: variance below 200 means very little detail
-        if (variance < 200) { console.log('[SentinelX] Frame too blurry/flat, skipping.'); return false; }
+        // Too dark: mean brightness below 30/255 (looser for darker rooms)
+        if (mean < 30) { console.log('[SentinelX] Frame too dark, skipping.'); return false; }
+        // Too blurry/flat: variance below 150 (looser for compressed Meet streams)
+        if (variance < 150) { console.log('[SentinelX] Frame too blurry/flat, skipping.'); return false; }
 
         return true;
     }
@@ -290,6 +289,11 @@ if (typeof window.sentinelxInjected === 'undefined') {
     }
 
     function sendToBackend(base64Frame, videoElement = null) {
+        if (!chrome.runtime?.id) {
+            console.log("[SentinelX] Extension context invalidated. Stopping scan.");
+            stopCapture();
+            return;
+        }
         try {
             chrome.runtime.sendMessage(
                 { action: "ANALYZE_FRAME", frame: base64Frame },
@@ -341,8 +345,7 @@ if (typeof window.sentinelxInjected === 'undefined') {
         }
     }
 
-    function stopCapture(manual = false) {
-        if (manual) userPaused = true;
+    function stopCapture() {
         isScanning = false;
         autoVideoElement = null;
         history = [];
@@ -366,16 +369,12 @@ if (typeof window.sentinelxInjected === 'undefined') {
     // --- PHASE 7: AUTO-SCAN MUTATION OBSERVER ---
     // Automatically detect playing <video> tags on the page and hook into them seamlessly.
     function checkForVideos() {
-        // Fix 0: Don't scan on our own dashboard/auth pages to avoid breaking React flows
-        if (location.href.includes('dashboard/index.html') || location.hostname.includes('sentinelx')) return;
-
         // Fix 1: Don't auto-scan on video-call sites
         if (isBlocklisted) {
+            console.log("[SentinelX] Video-call site detected. Auto-scan disabled. Use popup to scan manually.");
             return;
         }
-
-        if (isScanning || userPaused) return; // Already scanning OR user explicitly stopped it
-
+        if (isScanning) return; // Already scanning
         const videos = document.querySelectorAll('video');
         for (let vid of videos) {
             // Fix 2: Only hook videos larger than 300x200 (ignore tiny participant tiles)
@@ -414,22 +413,11 @@ if (typeof window.sentinelxInjected === 'undefined') {
     // --- LISTEN FOR MANUAL MESSAGES FROM POPUP ---
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         if (request.action === "START_SCAN") {
-            userPaused = false;
-            // Check if we can auto-hook a video instead of prompting for presentation
-            const videos = document.querySelectorAll('video');
-            let targetVid = null;
-            for (let v of videos) {
-                if (!v.paused && v.clientWidth > 300 && v.clientHeight > 200) {
-                    targetVid = v;
-                    break;
-                }
-            }
-
             if (!document.getElementById('sentinelx-widget-container')) injectWidget();
-            startCapture(targetVid); // Manual start but with auto-detection priority
+            startCapture(); // Manual start via screen-share
             sendResponse({ status: "started" });
         } else if (request.action === "STOP_SCAN") {
-            stopCapture(true); // Flag as manual stop
+            stopCapture();
             if (widget) widget.remove();
             sendResponse({ status: "stopped" });
         } else if (request.action === "GET_STATUS") {
