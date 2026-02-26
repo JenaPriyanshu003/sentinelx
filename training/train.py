@@ -242,14 +242,29 @@ def train():
     sample_w     = [class_weight[l] for l in labels]
     sampler      = WeightedRandomSampler(sample_w, len(sample_w), replacement=True)
 
-    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, sampler=sampler, num_workers=0, pin_memory=True)
-    val_loader   = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=0)
+    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, sampler=sampler, num_workers=12, pin_memory=True)
+    val_loader   = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False, num_workers=12)
 
     model, is_resumed = build_model()
     
     if is_resumed:
         unfreeze_all(model)
+        
+        # Try to detect last epoch from progress file
         start_epoch = 11
+        progress_file = os.path.join(_ROOT, "training_progress.txt")
+        if os.path.exists(progress_file):
+            with open(progress_file, "r") as f:
+                content = f.read()
+                if "Epoch" in content:
+                    try:
+                        # Format: "Epoch 21: 48% Complete"
+                        last_epoch = int(content.split("Epoch")[1].split(":")[0].strip())
+                        start_epoch = last_epoch
+                        print(f"  [RESUME] Detected last epoch: {last_epoch}. Starting from {start_epoch}.")
+                    except:
+                        pass
+        
         current_lr = RESUME_LR
     else:
         freeze_backbone(model)
@@ -291,12 +306,30 @@ def train():
             t_correct += (out.argmax(1) == labels).sum().item()
             t_total   += imgs.size(0)
             
-            # Progress reporting (Keep file log but remove disruptive terminal print)
+            # Progress reporting
             p = int(100. * (i + 1) / len(train_loader))
             if p % 2 == 0 and p != last_log_p:
                 with open(os.path.join(_ROOT, "training_progress.txt"), "w") as f:
-                    f.write(f"Epoch {epoch}: {p}% Complete\n")
+                    f.write(f"Epoch {epoch}: {p}% Complete (Accuracy: {100.*t_correct/t_total:.1f}%)\n")
                 last_log_p = p
+
+            # SAFETY: Frequent Checkpoint (Every 250 batches)
+            if (i + 1) % 250 == 0:
+                try:
+                    checkpoint_path = MODEL_OUT + ".tmp"
+                    torch.save(model.state_dict(), checkpoint_path)
+                    # On Windows, replace can fail if the file is being read.
+                    # We'll try to rename it, and if it fails, we'll just keep training.
+                    if os.path.exists(MODEL_OUT):
+                        try:
+                            os.remove(MODEL_OUT)
+                        except:
+                            pass 
+                    os.rename(checkpoint_path, MODEL_OUT)
+                    print(f"\n  [CHECKPOINT] Progress saved at batch {i+1}")
+                except Exception as e:
+                    print(f"\n  [WARNING] Checkpoint failed (file lock?): {e}")
+                    # Don't crash the whole training for a failed checkpoint
 
             bar.set_postfix(loss=f"{loss.item():.3f}", acc=f"{100.*t_correct/t_total:.1f}%")
 
