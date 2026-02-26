@@ -126,6 +126,8 @@ def _crop_face(pil_img):
 
 def _infer(pil_img):
     face, box = _crop_face(pil_img)
+    if box is None:
+        return None, None, None
     tensor = transform(face).unsqueeze(0).to(device)
     with torch.no_grad():
         probs = torch.nn.functional.softmax(model(tensor), dim=1)[0]
@@ -191,7 +193,9 @@ async def predict_image(
     if not model:
         raise HTTPException(500, "Model not loaded.")
     img = Image.open(io.BytesIO(await file.read())).convert("RGB")
-    pf, pr = _infer(img)
+    pf, pr, box = _infer(img)
+    if box is None:
+        raise HTTPException(400, "No face detected in image.")
     result = _verdict(pf, pr, "image")
     if user_email:
         await scans_col.insert_one({**result, "user_email": user_email, "timestamp": datetime.utcnow()})
@@ -218,8 +222,9 @@ async def predict_video(
         ok, frame = cap.read()
         if ok:
             pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            pf, pr = _infer(pil)
-            fakes.append(pf); reals.append(pr)
+            pf, pr, box = _infer(pil)
+            if box is not None:
+                fakes.append(pf); reals.append(pr)
     cap.release()
     os.unlink(tmp_path)
     if not fakes:
@@ -254,6 +259,8 @@ async def predict_frame(request: Request):
 
         img = Image.open(io.BytesIO(raw)).convert("RGB")
         pf, pr, box = _infer(img)
+        if box is None:
+            return {"status": "no_face", "prediction": "Unknown", "confidence": 0}
         result = _verdict(pf, pr, "frame")
         result["status"] = "success"
         result["face_box"] = box # [x, y, w, h]

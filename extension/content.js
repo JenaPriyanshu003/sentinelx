@@ -1,10 +1,7 @@
 if (typeof window.sentinelxInjected === 'undefined') {
     window.sentinelxInjected = true;
 
-    // Fix 1: Block auto-scan on video-call sites (manual scan still works)
-    const AUTO_SCAN_BLOCKLIST = ['zoom.us', 'teams.microsoft.com', 'whereby.com', 'webex.com'];
-    const isBlocklisted = AUTO_SCAN_BLOCKLIST.some(h => location.hostname.includes(h));
-
+    // Auto-scan blocklist strictly removed; relying entirely on manual screen-share invocations to bypass CORS.
     // Streak counter: require N consecutive fake-majority windows before alerting
     const STREAK_NEEDED = 3;
     let fakeStreak = 0;
@@ -363,51 +360,15 @@ if (typeof window.sentinelxInjected === 'undefined') {
             stream.getTracks().forEach(track => track.stop());
             stream = null;
         }
-        updateUI('READY');
-    }
 
-    // --- PHASE 7: AUTO-SCAN MUTATION OBSERVER ---
-    // Automatically detect playing <video> tags on the page and hook into them seamlessly.
-    function checkForVideos() {
-        // Fix 1: Don't auto-scan on video-call sites
-        if (isBlocklisted) {
-            console.log("[SentinelX] Video-call site detected. Auto-scan disabled. Use popup to scan manually.");
-            return;
-        }
-        if (isScanning) return; // Already scanning
-        const videos = document.querySelectorAll('video');
-        for (let vid of videos) {
-            // Fix 2: Only hook videos larger than 300x200 (ignore tiny participant tiles)
-            if (!vid.paused && vid.readyState >= 2 && vid.clientWidth > 300 && vid.clientHeight > 200) {
-                console.log("[SentinelX] Auto-detected playing video. Deploying Shield...");
-                injectWidget();
-                startCapture(vid);
-                return; // Only hook the first major playing video
-            }
-
-            // If it's not playing yet, attach a play listener
-            if (!vid.hasAttribute('data-sentinelx-hooked')) {
-                vid.setAttribute('data-sentinelx-hooked', 'true');
-                vid.addEventListener('playing', () => {
-                    // Fix 1 & 2: Re-check blocklist and size on play event too
-                    if (!isScanning && !isBlocklisted && vid.clientWidth > 300 && vid.clientHeight > 200) {
-                        console.log("[SentinelX] Video play event detected. Deploying Shield...");
-                        injectWidget();
-                        startCapture(vid);
-                    }
-                });
-            }
+        // Ensure widget is fully removed from DOM instead of sitting idle
+        if (widget) {
+            widget.remove();
+            widget = null;
         }
     }
 
-    // Run initial check
-    setTimeout(checkForVideos, 1000);
 
-    // Watch for dynamically added videos (like YouTube navigation or Twitter feed scrolling)
-    const observer = new MutationObserver(() => {
-        if (!isScanning) checkForVideos();
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
 
 
     // --- LISTEN FOR MANUAL MESSAGES FROM POPUP ---
