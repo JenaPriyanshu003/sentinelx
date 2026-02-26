@@ -3,75 +3,192 @@ import './App.css';
 
 // ── Icons ────────────────────────────────────────────────────────────────────
 const ShieldIcon = () => (
-  <svg className="logo-icon" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '32px', height: '32px' }}>
+  <svg className="logo-icon" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg">
     <path d="M19 3L5 9v10c0 8.3 5.9 16.1 14 18 8.1-1.9 14-9.7 14-18V9L19 3z"
-      stroke="#3b82f6" strokeWidth="2.5" fill="rgba(59,130,246,0.1)" />
-    <path d="M19 11v12M15 15l4-4 4 4" stroke="#3b82f6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      stroke="#00d4ff" strokeWidth="2" fill="rgba(0,212,255,0.08)" />
+    <path d="M13 19l4 4 8-8" stroke="#00d4ff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
 const UploadIcon = () => (
-  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+  <svg className="upload-icon-svg" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M16 4v18M8 12l8-8 8 8" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M6 24h20" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
   </svg>
 );
 
-const CloseIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <line x1="18" y1="6" x2="6" y2="18"></line>
-    <line x1="6" y1="6" x2="18" y2="18"></line>
+const HeroBg = () => (
+  <svg className="hero-svg-bg" viewBox="0 0 1100 260" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
+    <rect width="1100" height="260" fill="#050b18" />
+    {Array.from({ length: 20 }).map((_, i) => (
+      <line key={`v${i}`} x1={i * 60} y1="0" x2={i * 60} y2="260" stroke="rgba(0,212,255,0.05)" strokeWidth="1" />
+    ))}
+    {Array.from({ length: 6 }).map((_, i) => (
+      <line key={`h${i}`} x1="0" y1={i * 52} x2="1100" y2={i * 52} stroke="rgba(0,212,255,0.05)" strokeWidth="1" />
+    ))}
+    <circle cx="750" cy="130" r="180" fill="rgba(0,212,255,0.04)" />
+    <circle cx="850" cy="80" r="80" fill="rgba(139,92,246,0.05)" />
+    <ellipse cx="820" cy="130" rx="60" ry="75" stroke="rgba(0,212,255,0.15)" strokeWidth="1.5" fill="none" />
+    <circle cx="800" cy="115" r="5" fill="rgba(0,212,255,0.3)" />
+    <circle cx="840" cy="115" r="5" fill="rgba(0,212,255,0.3)" />
+    <path d="M805 148 Q820 158 835 148" stroke="rgba(0,212,255,0.3)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
+    <path d="M760 55 h15 M760 55 v15" stroke="rgba(0,212,255,0.4)" strokeWidth="2" strokeLinecap="round" />
+    <path d="M880 55 h-15 M880 55 v15" stroke="rgba(0,212,255,0.4)" strokeWidth="2" strokeLinecap="round" />
+    <path d="M760 205 h15 M760 205 v-15" stroke="rgba(0,212,255,0.4)" strokeWidth="2" strokeLinecap="round" />
+    <path d="M880 205 h-15 M880 205 v-15" stroke="rgba(0,212,255,0.4)" strokeWidth="2" strokeLinecap="round" />
+    <line x1="760" y1="130" x2="880" y2="130" stroke="rgba(0,212,255,0.2)" strokeWidth="1" strokeDasharray="4 4" />
   </svg>
 );
+
+// ── Result Modal ─────────────────────────────────────────────────────────────
+function ResultModal({ result, onClose }) {
+  if (!result) return null;
+  const isFake = result.prediction === 'Fake';
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className={`modal-card glass result-modal ${isFake ? 'fake-border' : 'real-border'}`} onClick={e => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>✕</button>
+
+        <div className="modal-header">
+          <div className={`verdict-badge ${isFake ? 'fake' : 'real'}`}>
+            {isFake ? '⚠️ Deepfake Detected' : '✅ Authentic Media'}
+          </div>
+        </div>
+
+        <div className="result-content">
+          <div className="confidence-display">
+            <span className="conf-label">Confidence Score</span>
+            <div className={`conf-value ${isFake ? 'text-fake' : 'text-real'}`}>{result.confidence.toFixed(1)}%</div>
+          </div>
+
+          <div className="conf-bar-tray">
+            <div className={`conf-bar-fill ${isFake ? 'fill-fake' : 'fill-real'}`} style={{ width: `${result.confidence}%` }} />
+          </div>
+
+          <div className="result-meta-grid">
+            <div className="meta-box"><label>Media Type</label><span>{result.analyzed_type}</span></div>
+            <div className="meta-box"><label>Timestamp</label><span>{new Date(result.timestamp || Date.now()).toLocaleTimeString()}</span></div>
+            <div className="meta-box"><label>Fake Score</label><span>{result.score_fake?.toFixed(1)}%</span></div>
+            <div className="meta-box"><label>Real Score</label><span>{result.score_real?.toFixed(1)}%</span></div>
+          </div>
+
+          <div className="result-guidance">
+            {isFake
+              ? "Significant AI-generated artifacts were found. This media is likely manipulated."
+              : "No significant deepfake patterns detected. The face appears biologically consistent."}
+          </div>
+        </div>
+
+        <button className="btn-signup" style={{ marginTop: '1.5rem', width: '100%' }} onClick={onClose}>Dismiss Report</button>
+      </div>
+    </div>
+  );
+}
 
 // ── Auth Modal ───────────────────────────────────────────────────────────────
-function AuthModal({ mode, onClose, onSwitch }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [name, setName] = useState('');
-  const [error, setError] = useState(null);
+function AuthModal({ mode, onClose, onSwitch, onLogin }) {
+  const [form, setForm] = useState({ name: '', email: '', password: '' });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
-    const endpoint = mode === 'login' ? '/auth/login' : '/auth/register';
-    const payload = mode === 'login' ? { email, password } : { name, email, password };
-
+    setError('');
+    if (!form.email || !form.password) {
+      setError('Please fill in all required fields.');
+      return;
+    }
+    if (mode === 'signup' && !form.name) {
+      setError('Please enter your name.');
+      return;
+    }
+    setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8000${endpoint}`, {
+      const endpoint = mode === 'login' ? '/auth/login' : '/auth/register';
+      const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${backendUrl}${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(mode === 'login' ? { email: form.email, password: form.password } : form)
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Auth failed');
-      localStorage.setItem('sentinelx_user', JSON.stringify({ name: data.name, email: data.email, token: data.token }));
-      window.location.reload();
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Authentication failed');
+      }
+      const data = await response.json();
+      onLogin(data);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="drawer-backdrop active" onClick={onClose}>
-      <div className="panel auth-panel" onClick={e => e.stopPropagation()} style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', maxWidth: '450px', width: '90%', zIndex: 2000 }}>
-        <div className="panel-title">{mode === 'login' ? 'System Authentication' : 'Establish Identity'}</div>
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', marginTop: '1rem' }}>
-          {mode === 'register' && (
-            <input className="btn-auth-outline" style={{ textAlign: 'left', width: '100%', cursor: 'text' }} placeholder="Full Name" type="text" value={name} onChange={e => setName(e.target.value)} required />
-          )}
-          <input className="btn-auth-outline" style={{ textAlign: 'left', width: '100%', cursor: 'text' }} placeholder="Admin Email" type="email" value={email} onChange={e => setEmail(e.target.value)} required />
-          <input className="btn-auth-outline" style={{ textAlign: 'left', width: '100%', cursor: 'text' }} placeholder="Access Crypt-Key" type="password" value={password} onChange={e => setPassword(e.target.value)} required />
-          {error && <p style={{ color: 'var(--danger)', fontSize: '13px' }}>{error}</p>}
-          <button className="btn-auth-filled" type="submit" style={{ padding: '14px' }}>{mode === 'login' ? 'Authorize Access' : 'Create Credentials'}</button>
-          <p style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center' }}>
-            {mode === 'login' ? "New operative?" : "Already registered?"}
-            <span onClick={onSwitch} style={{ color: 'var(--accent-blue)', cursor: 'pointer', marginLeft: '8px', fontWeight: 600 }}>
-              {mode === 'login' ? 'Register Identity' : 'Authorized Login'}
-            </span>
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card" onClick={e => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>✕</button>
+
+        <div className="modal-header">
+          <ShieldIcon />
+          <h2 className="modal-title">{mode === 'login' ? 'Welcome Back' : 'Create Account'}</h2>
+          <p className="modal-subtitle">
+            {mode === 'login'
+              ? 'Sign in to access SentinelX Lens'
+              : 'Join to start detecting deepfakes'}
           </p>
+        </div>
+
+        <form className="modal-form" onSubmit={handleSubmit}>
+          {mode === 'signup' && (
+            <div className="form-group">
+              <label className="form-label">Full Name</label>
+              <input
+                className="form-input"
+                type="text"
+                placeholder="John Doe"
+                value={form.name}
+                onChange={e => setForm({ ...form, name: e.target.value })}
+              />
+            </div>
+          )}
+          <div className="form-group">
+            <label className="form-label">Email Address</label>
+            <input
+              className="form-input"
+              type="email"
+              placeholder="you@email.com"
+              value={form.email}
+              onChange={e => setForm({ ...form, email: e.target.value })}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Password</label>
+            <input
+              className="form-input"
+              type="password"
+              placeholder="••••••••"
+              value={form.password}
+              onChange={e => setForm({ ...form, password: e.target.value })}
+            />
+          </div>
+
+          {error && <div className="modal-error">⚠ {error}</div>}
+
+          <button className="modal-submit" type="submit" disabled={loading}>
+            {loading ? <><div className="spinner" /> Processing...</> : (mode === 'login' ? 'Sign In' : 'Create Account')}
+          </button>
         </form>
+
+        <p className="modal-switch">
+          {mode === 'login' ? "Don't have an account? " : "Already have an account? "}
+          <button className="modal-switch-btn" onClick={onSwitch}>
+            {mode === 'login' ? 'Sign Up' : 'Sign In'}
+          </button>
+        </p>
       </div>
-    </div >
+    </div>
   );
 }
 
@@ -84,195 +201,187 @@ function App() {
   const [error, setError] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const [isVideo, setIsVideo] = useState(false);
-  const [user, setUser] = useState(null);
-  const [authModal, setAuthModal] = useState(null); // 'login' or 'register'
-  const [history, setHistory] = useState([]);
-  const [showActivity, setShowActivity] = useState(false);
-
   const fileInputRef = useRef(null);
 
-  // ── Auth Logic ──
-  useEffect(() => {
+  // Auth & DB state
+  const [authModal, setAuthModal] = useState(null); // null | 'login' | 'signup'
+  const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('sentinelx_user');
-    if (saved) {
-      const u = JSON.parse(saved);
-      setUser(u);
-      fetchHistory(u.email);
-    }
-  }, []);
+    return saved ? JSON.parse(saved) : null;
+  });
+  const [history, setHistory] = useState([]);
+
+  const handleLogin = (u) => {
+    localStorage.setItem('sentinelx_user', JSON.stringify(u));
+    setUser(u);
+    setAuthModal(null);
+  };
 
   const handleLogout = () => {
     localStorage.removeItem('sentinelx_user');
     setUser(null);
     setHistory([]);
-    window.location.reload();
+    setResult(null);
   };
 
-  const fetchHistory = async (email) => {
+  const fetchHistory = useCallback(async () => {
+    if (!user) return;
     try {
-      const res = await fetch(`http://localhost:8000/history?user_email=${email}`);
-      const data = await res.json();
-      if (res.ok) setHistory(data);
-    } catch (err) { console.error("History fetch error", err); }
-  };
+      const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${backendUrl}/scans/history`, {
+        headers: { 'Authorization': `Bearer ${user.token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setHistory(data);
+      }
+    } catch (e) {
+      console.error("Failed to fetch history", e);
+    }
+  }, [user]);
+
+  // Fetch history on user login
+  useEffect(() => { fetchHistory(); }, [fetchHistory]);
 
   const handleDrag = useCallback((e) => {
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault();
+    e.stopPropagation();
     if (e.type === "dragenter" || e.type === "dragover") setDragActive(true);
     else if (e.type === "dragleave") setDragActive(false);
   }, []);
 
   const processFile = (selectedFile) => {
     if (selectedFile && (selectedFile.type.startsWith('image/') || selectedFile.type.startsWith('video/'))) {
-      if (preview) URL.revokeObjectURL(preview);
       setFile(selectedFile);
       setIsVideo(selectedFile.type.startsWith('video/'));
-      setPreview(URL.createObjectURL(selectedFile));
       setResult(null);
       setError(null);
+      const reader = new FileReader();
+      reader.onloadend = () => setPreview(reader.result);
+      reader.readAsDataURL(selectedFile);
     } else {
-      setError("Invalid file type. Please provide an image or video.");
+      setError("Please select a valid image or video file.");
     }
   };
 
   const handleDrop = useCallback((e) => {
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault();
+    e.stopPropagation();
     setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      processFile(e.dataTransfer.files[0]);
-    }
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
   }, []);
 
   const analyzeFile = async () => {
     if (!file) return;
     setLoading(true);
     setError(null);
-
+    setResult(null);
     const formData = new FormData();
     formData.append('file', file);
-    if (user) formData.append('user_email', user.email);
-
-    const endpoint = isVideo ? '/predict/video' : '/predict/image';
     try {
-      const res = await fetch(`http://localhost:8000${endpoint}`, {
-        method: 'POST',
-        headers: user ? { 'Authorization': `Bearer ${user.token}` } : {},
-        body: formData
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || 'Analysis failed');
+      const endpoint = isVideo ? '/predict/video' : '/predict/image';
+      const backendUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const headers = user ? { 'Authorization': `Bearer ${user.token}` } : {};
+
+      const response = await fetch(`${backendUrl}${endpoint}`, { method: 'POST', body: formData, headers });
+      if (!response.ok) throw new Error(`Server error: ${response.status}`);
+      const data = await response.json();
       setResult(data);
-      if (user) fetchHistory(user.email);
+      if (user) fetchHistory(); // refresh history to include the new scan
     } catch (err) {
-      setError(err.message);
+      setError("Analysis failed. Ensure the backend is running or the file is valid.");
     } finally {
       setLoading(false);
     }
   };
 
   const resetState = () => {
-    setFile(null);
-    if (preview) URL.revokeObjectURL(preview);
-    setPreview(null);
-    setResult(null);
-    setError(null);
+    setFile(null); setPreview(null); setResult(null); setError(null); setIsVideo(false);
+  };
+
+  const openHistoryItem = (item) => {
+    setResult(item);
   };
 
   const isFake = result?.prediction === 'Fake';
 
   return (
     <div className="app-container">
+
+      {/* ── Result Modal ── */}
+      {result && (
+        <ResultModal
+          result={result}
+          onClose={() => setResult(null)}
+        />
+      )}
+
       {/* ── Auth Modal ── */}
       {authModal && (
         <AuthModal
           mode={authModal}
           onClose={() => setAuthModal(null)}
-          onSwitch={() => setAuthModal(authModal === 'login' ? 'register' : 'login')}
+          onSwitch={() => setAuthModal(authModal === 'login' ? 'signup' : 'login')}
+          onLogin={handleLogin}
         />
       )}
 
-      {/* ── Navigation ── */}
-      <nav className="header">
-        <div className="header-logo">
-          <ShieldIcon />
-          <h1>SentinelX</h1>
+      {/* ── Header ── */}
+      <header className="header">
+        <div className="header-left">
+          <div className="header-logo">
+            <ShieldIcon />
+            <div>
+              <h1>SentinelX</h1>
+              <span className="header-subtitle">Neural Deepfake Detection Engine</span>
+            </div>
+          </div>
         </div>
         <div className="header-right">
-          {user ? (
-            <>
-              <div className="nav-status">Secured: {user.name}</div>
-              <button className="btn-auth-outline" onClick={() => setShowActivity(true)}>Activity Log</button>
-              <button className="btn-auth-outline" onClick={handleLogout}>Logout</button>
-            </>
-          ) : (
-            <div className="auth-buttons" style={{ display: 'flex', gap: '12px' }}>
-              <button className="btn-auth-outline" onClick={() => setAuthModal('login')}>Sign In</button>
-              <button className="btn-auth-filled" onClick={() => setAuthModal('register')}>Get Started</button>
-            </div>
-          )}
+          <div className="status-pill">
+            <span className="status-dot" />
+            AI Model Active
+          </div>
+          <div className="auth-buttons">
+            {user ? (
+              <>
+                <span className="btn-login" style={{ cursor: 'default', pointerEvents: 'none' }}>👤 {user.name}</span>
+                <button className="btn-signup" onClick={handleLogout}>Sign Out</button>
+              </>
+            ) : (
+              <>
+                <button className="btn-login" onClick={() => setAuthModal('login')}>Sign In</button>
+                <button className="btn-signup" onClick={() => setAuthModal('signup')}>Get Started</button>
+              </>
+            )}
+          </div>
         </div>
-      </nav>
+      </header>
 
-      {/* ── Hero ── */}
+      {/* ── Hero Banner ── */}
       <section className="hero-banner">
-        <span className="hero-tagline">Advanced Biometric Protection</span>
-        <h2>Real-Time Intelligence for Digital Integrity.</h2>
-        <p>
-          Deploy our Xception-based neural engine to analyze facial artifacts and detect
-          AI-generated manipulations with 98% precision.
-        </p>
-
-        <div className="hero-stats">
-          <div className="stat-item">
-            <span className="stat-val">98%</span>
-            <span className="stat-label">Accuracy</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-val">&lt;2s</span>
-            <span className="stat-label">Latency</span>
-          </div>
-          <div className="stat-item">
-            <span className="stat-val">256-bit</span>
-            <span className="stat-label">Security</span>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Security Hub ── */}
-      <section className="main-layout" style={{ marginBottom: '2.5rem' }}>
-        <div className="panel security-hub" style={{ width: '100%', gridColumn: '1 / span 2' }}>
-          <div className="panel-title" style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>SentinelX Security Hub</span>
-            <span style={{ fontSize: '10px', opacity: 0.6 }}>Engine Online: v4.28</span>
-          </div>
-          <div className="hub-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '2rem', textAlign: 'center', marginTop: '1rem' }}>
-            <div className="hub-item">
-              <div className="stat-val" style={{ color: 'var(--text-primary)', fontSize: '1.5rem' }}>{history.length}</div>
-              <div className="stat-label">Total Assets Analyzed</div>
+        <div className="hero-image-wrapper">
+          <HeroBg />
+          <div className="hero-overlay">
+            <div className="hero-text">
+              <h2>Real-Time Deepfake Intelligence</h2>
+              <p>Upload any image or video. SentinelX analyzes facial biometrics and flags AI-generated manipulations with high precision.</p>
             </div>
-            <div className="hub-item">
-              <div className="stat-val" style={{ color: 'var(--text-primary)', fontSize: '1.5rem' }}>{history.filter(i => i.prediction === 'Fake').length}</div>
-              <div className="stat-label">Deepfakes Neutralized</div>
-            </div>
-            <div className="hub-item">
-              <div className="stat-val" style={{ color: 'var(--text-primary)', fontSize: '1.5rem' }}>98.2%</div>
-              <div className="stat-label">Detection Precision</div>
-            </div>
-            <div className="hub-item">
-              <div className="stat-val" style={{ color: 'var(--text-primary)', fontSize: '1.5rem' }}>&lt;42ms</div>
-              <div className="stat-label">Neural Latency</div>
+            <div className="hero-stats">
+              <div className="stat-box"><span className="stat-number">97.5%</span><span className="stat-label">Val Accuracy</span></div>
+              <div className="stat-box"><span className="stat-number">&lt;1.8s</span><span className="stat-label">Analysis Speed</span></div>
+              <div className="stat-box"><span className="stat-number">Live</span><span className="stat-label">Atlas Secured</span></div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── Main Operations ── */}
+      {/* ── Main Layout ── */}
       <main className="main-layout">
 
-        {/* Left: Inference Panel */}
-        <section className="panel">
-          <div className="panel-title">Inference Engine</div>
-
+        {/* Left: Upload Panel */}
+        <div className="panel-card upload-panel">
+          <div className="panel-title">Scan Target</div>
           {!preview ? (
             <div
               className={`drop-zone ${dragActive ? "drag-active" : ""}`}
@@ -283,15 +392,11 @@ function App() {
               <input ref={fileInputRef} type="file" accept="image/*,video/*"
                 onChange={e => e.target.files?.[0] && processFile(e.target.files[0])}
                 style={{ display: "none" }} />
-
-              <div className="upload-icon-box">
-                <UploadIcon />
-              </div>
-              <h3>Analyze Media</h3>
-              <p>Drag files here or click to browse</p>
-
-              <div className="file-types" style={{ marginTop: '2rem' }}>
-                {['MP4', 'MOV', 'JPG', 'PNG'].map(t => (
+              <div className="upload-icon-wrapper"><UploadIcon /></div>
+              <p>Drop an image or video here</p>
+              <span className="file-hint">or click to browse from your device</span>
+              <div className="file-types">
+                {['JPG', 'PNG', 'WEBP', 'MP4', 'MOV', 'AVI'].map(t => (
                   <span key={t} className="type-badge">{t}</span>
                 ))}
               </div>
@@ -302,124 +407,56 @@ function App() {
                 {isVideo
                   ? <video src={preview} controls className="image-preview" />
                   : <img src={preview} alt="preview" className="image-preview" />}
-                {loading && <div className="scan-overlay"><div className="scan-line" /></div>}
+                {loading && <div className="scan-overlay scan-corners"><div className="scan-line" /></div>}
               </div>
-
-              {!result ? (
-                <button className="btn-primary" onClick={analyzeFile} disabled={loading}>
-                  {loading ? 'Processing Stream...' : 'Execute Analysis'}
-                </button>
-              ) : (
-                <button className="btn-auth-outline" style={{ width: '100%', marginTop: '1rem', padding: '12px' }} onClick={resetState}>
-                  Discard Result
+              {!result && (
+                <button className="analyze-button" onClick={analyzeFile} disabled={loading}>
+                  {loading
+                    ? <><div className="spinner" /> Analyzing...</>
+                    : <>
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.5" />
+                        <path d="M5 8l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      Run Deepfake Analysis
+                    </>}
                 </button>
               )}
+              {result && <button className="reset-button" onClick={resetState}>Analyze Another File</button>}
             </div>
           )}
-        </section>
+        </div>
 
-        {/* Right: Info / Results */}
-        <section className="panel">
-          <div className="panel-title">{!result ? (user ? 'Activity Statistics' : 'Core Capabilities') : 'Analysis Report'}</div>
-
-          {!result ? (
-            user ? (
-              <div className="history-list">
-                <div style={{ padding: '20px', textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: '15px' }}>
-                  <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--accent-blue)' }}>{history.length}</div>
-                  <div style={{ fontSize: '11px', textTransform: 'uppercase', color: 'var(--text-muted)', marginTop: '4px' }}>Total Scans Performed</div>
-                </div>
-                {history.slice(0, 3).map(item => (
-                  <div key={item._id} className="history-item" style={{ marginBottom: '8px', padding: '10px' }}>
-                    <div style={{ fontSize: '12px', flex: 1 }}>
-                      <strong>{item.prediction}</strong> {item.analyzed_type}
-                    </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{new Date(item.timestamp).toLocaleDateString()}</div>
-                  </div>
-                ))}
-                <button className="btn-auth-outline" style={{ width: '100%' }} onClick={() => setShowActivity(true)}>View All Records</button>
+        <div className="panel-card info-panel">
+          <div className="panel-title">Scan History</div>
+          <div className="history-list">
+            {!user ? (
+              <div className="empty-history" style={{ textAlign: "center", padding: "2rem" }}>
+                <p style={{ marginBottom: "1rem" }}>Sign in to view and save your scan history securely.</p>
+                <button className="btn-login" onClick={() => setAuthModal('login')}>Sign In</button>
               </div>
-            ) : (
-              <div className="feature-list">
-                {[
-                  { icon: '🧠', title: 'Xception Architecture', desc: 'Custom fine-tuned weights for face anti-spoofing.' },
-                  { icon: '🎯', title: 'Biometric Cropping', desc: 'Auto-isolation of high-value facial regions.' },
-                  { icon: '🎬', title: 'Temporal Smoothing', desc: 'Frame-by-frame consistency validation.' },
-                  { icon: '🔒', title: 'Secure Vault', desc: 'Encrypted storage for sensitive scan records.' }
-                ].map(f => (
-                  <div key={f.title} className="feature-item">
-                    <span className="feature-icon">{f.icon}</span>
-                    <div className="item-info">
-                      <h4>{f.title}</h4>
-                      <p>{f.desc}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )
-          ) : (
-            <div className={`result-card ${isFake ? 'fake' : 'real'}`}>
-              <div className={`verdict-header ${isFake ? 'fake' : 'real'}`}>
-                <div className="verdict-title">
-                  {isFake ? 'Deepfake Detected' : 'Authentic Media'}
-                </div>
-              </div>
-
-              <div className="confidence-scale">
-                <div className="scale-label">
-                  <span>Confidence Level</span>
-                  <span>{result.confidence.toFixed(1)}%</span>
-                </div>
-                <div className="progress-bar">
-                  <div className={`progress-fill ${isFake ? 'fake' : 'real'}`} style={{ width: `${result.confidence}%` }} />
-                </div>
-              </div>
-
-              <div className="meta-grid">
-                <div className="meta-item"><div className="meta-key" style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Analyzed</div><div className="meta-val" style={{ fontWeight: 700 }}>{result.analyzed_type}</div></div>
-                <div className="meta-item"><div className="meta-key" style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Confidence</div><div className="meta-val" style={{ fontWeight: 700 }}>{result.confidence}%</div></div>
-              </div>
-            </div>
-          )}
-        </section>
-      </main>
-
-      {/* ── Activity Drawer ── */}
-      <div className={`drawer-backdrop ${showActivity ? 'active' : ''}`} onClick={() => setShowActivity(false)}>
-        <div className="drawer-content" onClick={e => e.stopPropagation()}>
-          <div className="drawer-header">
-            <h2>Activity History</h2>
-            <button className="drawer-close" onClick={() => setShowActivity(false)}><CloseIcon /></button>
-          </div>
-          <div className="drawer-body">
-            {history.length === 0 ? (
-              <p style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem' }}>No activity records found.</p>
+            ) : history.length === 0 ? (
+              <div className="empty-history">No past scans found. Run your first analysis!</div>
             ) : (
               history.map(item => (
-                <div key={item._id} className="history-item">
-                  <div className={`item-indicator ${item.prediction === 'Fake' ? 'fake' : 'real'}`} style={{ width: '10px', height: '10px', borderRadius: '50%' }} />
-                  <div className="item-info">
-                    <h4 style={{ color: '#fff' }}>{item.prediction} {item.analyzed_type}</h4>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '11px' }}>{new Date(item.timestamp).toLocaleString()}</p>
+                <div key={item._id} className="history-card" onClick={() => openHistoryItem(item)}>
+                  <div className="history-status">
+                    <span className={`status-indicator-mini ${item.prediction === 'Fake' ? 'fake' : 'real'}`} />
+                    <span className="history-label">{item.prediction} {item.analyzed_type}</span>
                   </div>
-                  <div className="item-score" style={{ marginLeft: 'auto', fontWeight: 800, color: item.prediction === 'Fake' ? 'var(--danger)' : 'var(--success)' }}>
-                    {item.confidence.toFixed(1)}%
+                  <div className="history-meta">
+                    <span className="history-conf">{item.confidence.toFixed(1)}%</span>
+                    <span className="history-time">{new Date(item.timestamp).toLocaleDateString()}</span>
                   </div>
                 </div>
               ))
             )}
           </div>
         </div>
-      </div>
+      </main>
 
-      <footer className="footer">
-        <div>© 2026 SentinelX Systems · Intelligence for the Digital Era.</div>
-        <div style={{ display: 'flex', gap: '20px' }}>
-          <span>Terms</span>
-          <span>Privacy</span>
-          <span>Security API</span>
-        </div>
-      </footer>
+      {error && <div className="error-banner"><span>⚠</span>{error}</div>}
+      <footer className="footer">SentinelX Lens · Secure MongoDB Atlas Integration Active</footer>
     </div>
   );
 }
