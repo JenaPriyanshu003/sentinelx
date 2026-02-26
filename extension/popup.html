@@ -5,6 +5,32 @@
   <meta charset="UTF-8">
   <title>SentinelX Shield</title>
   <link rel="stylesheet" href="popup.css">
+  <style>
+    .dashboard-btn {
+      width: 100%;
+      padding: 10px;
+      margin-top: 8px;
+      background: transparent;
+      color: #a0aec0;
+      border: 1px solid #2d3748;
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .dashboard-btn:hover {
+      background: #1a202c;
+      color: #e2e8f0;
+      border-color: #4a5568;
+    }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #2d3748;
+      margin: 12px 0;
+    }
+  </style>
 </head>
 
 <body>
@@ -31,6 +57,13 @@
         <span class="slider round"></span>
       </label>
     </div>
+
+    <button id="reload-ext-btn" class="dashboard-btn"
+      style="background: #e53e3e; color: white; font-weight: bold; border-color: #c53030; margin-top: 16px;">
+      ↻ Force Restart Extension
+    </button>
+
+    <hr class="divider">
 
     <button id="dashboard-btn" class="dashboard-btn">📊 Open Dashboard</button>
   </div>

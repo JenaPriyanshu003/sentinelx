@@ -53,4 +53,7 @@ document.getElementById('dashboard-btn').addEventListener('click', () => {
     chrome.tabs.create({ url: dashboardUrl });
 });
 
-
+// Force restart the extension to fix broken background workers
+document.getElementById('reload-ext-btn').addEventListener('click', () => {
+    chrome.runtime.reload();
+});
