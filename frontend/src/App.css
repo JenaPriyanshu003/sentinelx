@@ -943,8 +943,13 @@ body {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .modal-card {
@@ -960,8 +965,15 @@ body {
 }
 
 @keyframes slideUp {
-  from { opacity: 0; transform: translateY(24px) scale(0.97); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .modal-close {
@@ -1116,4 +1128,144 @@ body {
 
 .modal-switch-btn:hover {
   opacity: 0.8;
+}
+
+/* ─── Dashboard Feature Upgrades ─────────────────────── */
+.security-hub {
+  width: 100%;
+  max-width: 1200px;
+  margin-top: 2rem;
+  margin-bottom: 2.5rem;
+  background: rgba(10, 20, 50, 0.4);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 212, 255, 0.1);
+  border-radius: 20px;
+  padding: 1.5rem 2rem;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+  position: relative;
+}
+
+.hub-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.hub-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hub-title h3 {
+  font-family: 'Orbitron', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent-cyan);
+}
+
+.pulse-indicator {
+  width: 10px;
+  height: 10px;
+  background: var(--accent-green);
+  border-radius: 50%;
+  box-shadow: 0 0 10px var(--accent-green);
+  animation: sxl-pulse 2s infinite;
+}
+
+@keyframes sxl-pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 10px rgba(16, 185, 129, 0);
+  }
+
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+.hub-status {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1.5rem;
+}
+
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.stat-label {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+/* Forensic Breakdown Styles */
+.forensic-breakdown {
+  margin-top: 1rem;
+}
+
+.artifact-pill {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  margin-bottom: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.artifact-pill span:first-child {
+  color: var(--text-secondary);
+}
+
+.status-ok {
+  color: var(--accent-green);
+  font-weight: 800;
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+}
+
+.status-warn {
+  color: var(--accent-red);
+  font-weight: 800;
+  font-size: 0.65rem;
+  letter-spacing: 0.05em;
+  text-shadow: 0 0 8px rgba(239, 68, 68, 0.3);
+}
+
+@media (max-width: 900px) {
+  .stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
